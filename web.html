@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private AI Research Assistant</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f6f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            width: 420px;
+            height: 620px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- Login Screen Styles --- */
+        #auth-screen {
+            padding: 40px 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+        }
+
+        #auth-screen h2 {
+            margin-bottom: 8px;
+            color: #1f2937;
+            text-align: center;
+        }
+
+        #auth-screen p {
+            color: #6b7280;
+            font-size: 0.9rem;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            outline: none;
+            font-size: 0.95rem;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus {
+            border-color: #2563eb;
+        }
+
+        .primary-btn {
+            width: 100%;
+            padding: 11px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 8px;
+        }
+
+        .primary-btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        .error-msg {
+            color: #dc2626;
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: 12px;
+            min-height: 20px;
+        }
+
+        /* --- Chat Screen Styles --- */
+        #chat-screen {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-header {
+            background-color: #2563eb;
+            color: #ffffff;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h3 {
+            font-size: 1.05rem;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #fafafa;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background-color: #2563eb;
+            color: #ffffff;
+            border-bottom-right-radius: 2px;
+        }
+
+        .bot-message {
+            align-self: flex-start;
+            background-color: #e5e7eb;
+            color: #1f2937;
+            border-bottom-left-radius: 2px;
+        }
+
+        .chat-input-area {
+            display: flex;
+            padding: 12px;
+            border-top: 1px solid #e5e7eb;
+            background-color: #ffffff;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 20px;
+            outline: none;
+            font-size: 0.95rem;
+        }
+
+        .chat-input-area input:focus {
+            border-color: #2563eb;
+        }
+
+        .chat-input-area button {
+            margin-left: 8px;
+            padding: 10px 18px;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        .chat-input-area button:hover {
+            background-color: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- 1. LOGIN SCREEN -->
+        <div id="auth-screen">
+            <h2>Restricted Access</h2>
+            <p>Enter your credentials to unlock the private AI assistant.</p>
+            
+            <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="Enter username" autocomplete="username">
+            </div>
+
+            <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
+            </div>
+
+            <button class="primary-btn" onclick="handleLogin()">Log In</button>
+            <div id="auth-error" class="error-msg"></div>
+        </div>
+
+        <!-- 2. SECURE CHAT SCREEN (Hidden by default) -->
+        <div id="chat-screen" class="hidden">
+            <div class="chat-header">
+                <h3>Private Research Bot</h3>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+
+            <div class="chat-messages" id="chat-messages">
+                <div class="message bot-message">Hello admin! Secure connection established. How can I help you research today?</div>
+            </div>
+
+            <form class="chat-input-area" id="chat-form" onsubmit="sendMessage(event)">
+                <input type="text" id="chat-input" placeholder="Type a message or ask a research question..." autocomplete="off" required>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+
+        // Check if user is already logged in on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = sessionStorage.getItem('access_token');
+            if (token) {
+                showChatScreen();
+            }
+        });
+
+        // Handle Login Request
+        async function handleLogin() {
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value.trim();
+            const errorDiv = document.getElementById('auth-error');
+            errorDiv.textContent = '';
+
+            if (!user || !pass) {
+                errorDiv.textContent = 'Please fill in both fields.';
+                return;
+            }
+
+            // OAuth2PasswordRequestForm expects data in x-www-form-urlencoded format
+            const formData = new URLSearchParams();
+            formData.append('username', user);
+            formData.append('password', pass);
+
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Access Denied: Incorrect credentials.');
+                }
+
+                // Save token securely in session storage
+                sessionStorage.setItem('access_token', data.access_token);
+                showChatScreen();
+            } catch (err) {
+                errorDiv.textContent = err.message;
+            }
+        }
+
+        // Switch UI to chat view
+        function showChatScreen() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('chat-screen').classList.remove('hidden');
+        }
+
+        // Handle Sending Messages (Protected with JWT Bearer Token)
+        async function sendMessage(event) {
+            event.preventDefault();
+            const inputField = document.getElementById('chat-input');
+            const chatMessages = document.getElementById('chat-messages');
+            const token = sessionStorage.getItem('access_token');
+            const messageText = inputField.value.trim();
+
+            if (!messageText) return;
+
+            // Display user message
+            appendMessage(messageText, 'user-message');
+            inputField.value = '';
+
+            try {
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` // Sends the secure key along
+                    },
+                    body: JSON.stringify({ message: messageText })
+                });
+
+                if (response.status === 401) {
+                    alert('Session expired or unauthorized. Please log in again.');
+                    logout();
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error('Server returned an error.');
+                }
+
+                const data = await response.json();
+                
+                // Display bot response
+                appendMessage(data.response, 'bot-message');
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('Sorry, something went wrong communicating with the secure backend.', 'bot-message');
+            }
+        }
+
+        // Helper function to append message bubbles
+        function appendMessage(text, className) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', className);
+            messageDiv.textContent = text;
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Handle Logout
+        function logout() {
+            sessionStorage.removeItem('access_token');
+            document.getElementById('chat-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+    </script>
+</body>
+</html>
