@@ -32,7 +32,7 @@ MAX_HISTORY_MESSAGES = 20
 ALLOWED_USERS = {
     "akash": "player115",
     "akshara": "password",
-    "bob": "securepass456"
+    "akanksha": "securepass"
 }
 
 # --- DATABASE SETUP ---
@@ -129,7 +129,7 @@ def get_formatted_user_history(username: str):
     
     # Gemini uses 'user' and 'model' for chat contents formatting
     formatted_messages = []
-        dynamic_system_prompt = (
+    dynamic_system_prompt = (
         "You are an assisting chatbot named ETHAN — 'Engine for Text, Heuristics, & Augmented Navigation'. "
         f"You are currently talking to the logged-in user named '{username}'. "
         "Address them by name when appropriate. Tavily web-search context will be provided when relevant. "
