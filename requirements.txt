@@ -1,8 +1,9 @@
-fastapi
-uvicorn
+flask
+flask_cors
+werkzeug.security
+datetime
+os
+sqlite3
 python-jose[cryptography]
-passlib[bcrypt]
-bcrypt==4.0.1
-python-multipart
 ollama
 tavily-python
