@@ -22,7 +22,7 @@
 
         .container {
             width: 420px;
-            height: 620px;
+            height: 640px;
             background: #ffffff;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
@@ -35,7 +35,7 @@
             display: none !important;
         }
 
-        /* --- Login Screen Styles --- */
+        /* --- Auth Screen Styles --- */
         #auth-screen {
             padding: 40px 30px;
             display: flex;
@@ -52,7 +52,7 @@
 
         #auth-screen p {
             color: #6b7280;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             text-align: center;
             margin-bottom: 24px;
         }
@@ -119,28 +119,38 @@
         .chat-header {
             background-color: #2563eb;
             color: #ffffff;
-            padding: 16px;
+            padding: 14px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .chat-header h3 {
-            font-size: 1.05rem;
+        .chat-header-info h3 {
+            font-size: 1rem;
         }
 
-        .logout-btn {
+        .chat-header-info span {
+            font-size: 0.75rem;
+            opacity: 0.85;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-btn {
             background: rgba(255, 255, 255, 0.2);
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             cursor: pointer;
             transition: background 0.2s;
         }
 
-        .logout-btn:hover {
+        .header-btn:hover {
             background: rgba(255, 255, 255, 0.3);
         }
 
@@ -217,162 +227,292 @@
 <body>
 
     <div class="container">
-        <!-- 1. LOGIN SCREEN -->
+        <!-- 1. AUTH SCREEN -->
         <div id="auth-screen">
-            <h2>Restricted Access</h2>
-            <p>Enter your credentials to unlock the private AI assistant.</p>
+            <h2>Welcome Back</h2>
+            <p>Enter your assigned credentials to log in.</p>
             
-            <div class="input-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" placeholder="Enter username" autocomplete="username">
-            </div>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter username" autocomplete="username" required>
+                </div>
 
-            <div class="input-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
-            </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required>
+                </div>
 
-            <button class="primary-btn" onclick="handleLogin()">Log In</button>
+                <button type="submit" class="primary-btn">Log In</button>
+            </form>
+
             <div id="auth-error" class="error-msg"></div>
         </div>
 
-        <!-- 2. SECURE CHAT SCREEN (Hidden by default) -->
+        <!-- 2. SECURE CHAT SCREEN -->
         <div id="chat-screen" class="hidden">
             <div class="chat-header">
-                <h3>Private Research Bot</h3>
-                <button class="logout-btn" onclick="logout()">Logout</button>
+                <div class="chat-header-info">
+                    <h3>ETHAN Assistant</h3>
+                    <span>User: <strong id="header-username">User</strong></span>
+                </div>
+                <div class="header-actions">
+                    <button class="header-btn" onclick="clearHistory()">Clear Chat</button>
+                    <button class="header-btn" onclick="logout()">Logout</button>
+                </div>
             </div>
 
-            <div class="chat-messages" id="chat-messages">
-                <div class="message bot-message">Hello admin! Secure connection established. How can I help you research today?</div>
-            </div>
+            <div class="chat-messages" id="chat-messages"></div>
 
             <form class="chat-input-area" id="chat-form" onsubmit="sendMessage(event)">
-                <input type="text" id="chat-input" placeholder="Type a message or ask a research question..." autocomplete="off" required>
+                <input type="text" id="chat-input" placeholder="Type a message or ask a question..." autocomplete="off" required>
                 <button type="submit">Send</button>
             </form>
         </div>
     </div>
 
     <script>
-const API_BASE_URL = "https://retiree-myth-creative.ngrok-free.dev";
-        fetch(`${API_BASE_URL}/token`, { ... })
-        fetch(`${API_BASE_URL}/chat`, { ... })
+    // Automatically dynamic to current domain (tunnel or local IP)
+    const API_URL = window.location.origin;
 
-        // Check if user is already logged in on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            const token = sessionStorage.getItem('access_token');
-            if (token) {
-                showChatScreen();
+    let authInProgress = false;
+    let messageInProgress = false;
+
+    async function readApiResponse(response) {
+        const rawText = await response.text();
+        let data;
+
+        try {
+            data = JSON.parse(rawText);
+        } catch {
+            throw new Error(`Backend returned HTTP ${response.status} non-JSON response.`);
+        }
+
+        if (!response.ok) {
+            const detail = typeof data.detail === "string" 
+                ? data.detail 
+                : `Request failed with HTTP ${response.status}.`;
+            throw new Error(detail);
+        }
+
+        return data;
+    }
+
+    function tokenIsExpired(token) {
+        try {
+            const payloadPart = token.split(".")[1];
+            if (!payloadPart) return true;
+
+            const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+            const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+            const payload = JSON.parse(atob(padded));
+
+            return typeof payload.exp !== "number" || Date.now() >= payload.exp * 1000;
+        } catch {
+            return true;
+        }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+        const token = sessionStorage.getItem("access_token");
+        const username = sessionStorage.getItem("username");
+
+        if (token && username && !tokenIsExpired(token)) {
+            showChatScreen(username);
+            loadChatHistory();
+        } else {
+            logout();
+        }
+    });
+
+    async function handleLogin(event) {
+        event.preventDefault();
+        if (authInProgress) return;
+
+        const usernameInput = document.getElementById("username").value.trim();
+        const passwordInput = document.getElementById("password").value;
+        const errorDiv = document.getElementById("auth-error");
+
+        errorDiv.textContent = "";
+
+        if (!usernameInput || !passwordInput) {
+            errorDiv.textContent = "Please fill in all fields.";
+            return;
+        }
+
+        authInProgress = true;
+
+        try {
+            const response = await fetch(`${API_URL}/token`, {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "1"
+                },
+                body: JSON.stringify({
+                    username: usernameInput,
+                    password: passwordInput
+                })
+            });
+
+            const data = await readApiResponse(response);
+
+            sessionStorage.setItem("access_token", data.access_token);
+            sessionStorage.setItem("username", data.username || usernameInput);
+
+            document.getElementById("password").value = "";
+            showChatScreen(data.username || usernameInput);
+            loadChatHistory();
+        } catch (error) {
+            errorDiv.textContent = error instanceof TypeError 
+                ? "Cannot reach backend. Verify server and network tunnels are active." 
+                : error.message;
+        } finally {
+            authInProgress = false;
+        }
+    }
+
+    function showChatScreen(username) {
+        document.getElementById("auth-screen").classList.add("hidden");
+        document.getElementById("chat-screen").classList.remove("hidden");
+        document.getElementById("header-username").textContent = username;
+        document.getElementById("chat-input").focus();
+    }
+
+    async function loadChatHistory() {
+        const token = sessionStorage.getItem("access_token");
+        const chatContainer = document.getElementById("chat-messages");
+        chatContainer.replaceChildren();
+
+        try {
+            const response = await fetch(`${API_URL}/history`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "ngrok-skip-browser-warning": "1"
+                }
+            });
+
+            const data = await readApiResponse(response);
+
+            if (data.history && data.history.length > 0) {
+                data.history.forEach(item => {
+                    const cssClass = item.role === "user" ? "user-message" : "bot-message";
+                    appendMessage(item.content, cssClass);
+                });
+            } else {
+                appendMessage("Hello! Connected to your remote session. How can I assist you today?", "bot-message");
             }
-        });
+        } catch (error) {
+            console.error("Failed to load chat history:", error);
+            appendMessage("Welcome! Connected to server.", "bot-message");
+        }
+    }
 
-        // Handle Login Request
-        async function handleLogin() {
-            const user = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value.trim();
-            const errorDiv = document.getElementById('auth-error');
-            errorDiv.textContent = '';
+    async function clearHistory() {
+        if (!confirm("Are you sure you want to clear your conversation history?")) return;
 
-            if (!user || !pass) {
-                errorDiv.textContent = 'Please fill in both fields.';
+        const token = sessionStorage.getItem("access_token");
+        try {
+            await fetch(`${API_URL}/history`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "ngrok-skip-browser-warning": "1"
+                }
+            });
+
+            document.getElementById("chat-messages").replaceChildren();
+            appendMessage("Chat history cleared. How can I help you next?", "bot-message");
+        } catch (error) {
+            alert("Could not clear history: " + error.message);
+        }
+    }
+
+    async function sendMessage(event) {
+        if (event) event.preventDefault();
+        if (messageInProgress) return;
+
+        const inputField = document.getElementById("chat-input");
+        const messageText = inputField.value.trim();
+        const token = sessionStorage.getItem("access_token");
+
+        if (!messageText) return;
+
+        if (!token || tokenIsExpired(token)) {
+            logout();
+            document.getElementById("auth-error").textContent = "Session expired. Please log in again.";
+            return;
+        }
+
+        messageInProgress = true;
+        inputField.disabled = true;
+
+        appendMessage(messageText, "user-message");
+        inputField.value = "";
+
+        const pendingMessage = appendMessage("Thinking…", "bot-message");
+
+        try {
+            const response = await fetch(`${API_URL}/chat`, {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "ngrok-skip-browser-warning": "1"
+                },
+                body: JSON.stringify({ message: messageText })
+            });
+
+            if (response.status === 401) {
+                logout();
+                document.getElementById("auth-error").textContent = "Session expired. Please log in again.";
                 return;
             }
 
-            // OAuth2PasswordRequestForm expects data in x-www-form-urlencoded format
-            const formData = new URLSearchParams();
-            formData.append('username', user);
-            formData.append('password', pass);
+            const data = await readApiResponse(response);
+            pendingMessage.textContent = data.reply;
+        } catch (error) {
+            pendingMessage.textContent = `Error: ${error.message}`;
+        } finally {
+            messageInProgress = false;
+            inputField.disabled = false;
 
-            try {
-                const response = await fetch(`${API_URL}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: formData
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Access Denied: Incorrect credentials.');
-                }
-
-                // Save token securely in session storage
-                sessionStorage.setItem('access_token', data.access_token);
-                showChatScreen();
-            } catch (err) {
-                errorDiv.textContent = err.message;
-            }
-        }
-
-        // Switch UI to chat view
-        function showChatScreen() {
-            document.getElementById('auth-screen').classList.add('hidden');
-            document.getElementById('chat-screen').classList.remove('hidden');
-        }
-
-        // Handle Sending Messages (Protected with JWT Bearer Token)
-        async function sendMessage(event) {
-            event.preventDefault();
-            const inputField = document.getElementById('chat-input');
-            const chatMessages = document.getElementById('chat-messages');
-            const token = sessionStorage.getItem('access_token');
-            const messageText = inputField.value.trim();
-
-            if (!messageText) return;
-
-            // Display user message
-            appendMessage(messageText, 'user-message');
-            inputField.value = '';
-
-            try {
-                const response = await fetch(`${API_URL}/chat`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}` // Sends the secure key along
-                    },
-                    body: JSON.stringify({ message: messageText })
-                });
-
-                if (response.status === 401) {
-                    alert('Session expired or unauthorized. Please log in again.');
-                    logout();
-                    return;
-                }
-
-                if (!response.ok) {
-                    throw new Error('Server returned an error.');
-                }
-
-                const data = await response.json();
-                
-                // Display bot response
-                appendMessage(data.response, 'bot-message');
-            } catch (error) {
-                console.error('Error:', error);
-                appendMessage('Sorry, something went wrong communicating with the secure backend.', 'bot-message');
-            }
-        }
-
-        // Helper function to append message bubbles
-        function appendMessage(text, className) {
-            const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message', className);
-            messageDiv.textContent = text;
-            const chatMessages = document.getElementById('chat-messages');
-            chatMessages.appendChild(messageDiv);
+            const chatMessages = document.getElementById("chat-messages");
             chatMessages.scrollTop = chatMessages.scrollHeight;
+            inputField.focus();
         }
+    }
 
-        // Handle Logout
-        function logout() {
-            sessionStorage.removeItem('access_token');
-            document.getElementById('chat-screen').classList.add('hidden');
-            document.getElementById('auth-screen').classList.remove('hidden');
-            document.getElementById('username').value = '';
-            document.getElementById('password').value = '';
-        }
+    function appendMessage(text, className) {
+        const messageDiv = document.createElement("div");
+        messageDiv.classList.add("message", className);
+        messageDiv.textContent = text;
+        messageDiv.style.whiteSpace = "pre-wrap";
+
+        const chatMessages = document.getElementById("chat-messages");
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        return messageDiv;
+    }
+
+    function logout() {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("username");
+
+        document.getElementById("chat-screen").classList.add("hidden");
+        document.getElementById("auth-screen").classList.remove("hidden");
+
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
+        document.getElementById("auth-error").textContent = "";
+        document.getElementById("chat-messages").replaceChildren();
+
+        document.getElementById("username").focus();
+    }
     </script>
 </body>
 </html>
