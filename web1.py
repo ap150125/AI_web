@@ -18,8 +18,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.environ.get("DATABASE_PATH", os.path.join(BASE_DIR, "ethan_app.db"))
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "CHANGE_THIS_BEFORE_SHARING_THIS_APP")
-TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", tkey)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", gkey)
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # Initialize the Google GenAI client (uses GEMINI_API_KEY environment variable automatically if passed or configured)
 ai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
