@@ -127,16 +127,26 @@ def get_formatted_user_history(username: str):
 
     rows.reverse()
     
-    # Gemini uses 'user' and 'model' for chat contents formatting
-    formatted_messages = []
+    # --- ADD YOUR DYNAMIC SYSTEM PROMPT HERE ---
     dynamic_system_prompt = (
         "You are an assisting chatbot named ETHAN — 'Engine for Text, Heuristics, & Augmented Navigation'. "
         f"You are currently talking to the logged-in user named '{username}'. "
-        "Address them by name when appropriate. Tavily web-search context will be provided when relevant. "
-        "Do not invent facts."
+        "Address them by name when appropriate. Tavily web-search context will be provided when relevant."
     )
     
-    formatted_messages = [{"role": "system", "content": dynamic_system_prompt}]
+    # Pass it to Gemini as the first system instruction or prepend it to the chat payload
+    formatted_messages = []
+    
+    # Optional: If you want Gemini to see the system prompt, you can inject it:
+    formatted_messages.append({
+        "role": "user", 
+        "parts": [{"text": f"[System Instruction: {dynamic_system_prompt}]"}]
+    })
+    formatted_messages.append({
+        "role": "model", 
+        "parts": [{"text": f"Understood. I am ETHAN, and I am ready to help {username}."}]
+    })
+
     for row in rows:
         gemini_role = "user" if row["role"] == "user" else "model"
         formatted_messages.append({
@@ -145,8 +155,6 @@ def get_formatted_user_history(username: str):
         })
 
     return formatted_messages
-
-
 def save_message(username: str, role: str, content: str):
     with get_db() as conn:
         cursor = conn.cursor()
