@@ -1,4 +1,3 @@
-
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -8,7 +7,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from jose import JWTError, jwt
 from werkzeug.security import generate_password_hash, check_password_hash
-import ollama
+from google import genai
 from tavily import TavilyClient
 
 app = Flask(__name__)
@@ -19,7 +18,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.environ.get("DATABASE_PATH", os.path.join(BASE_DIR, "ethan_app.db"))
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "CHANGE_THIS_BEFORE_SHARING_THIS_APP")
-TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "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")
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", tkey)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", gkey)
+
+# Initialize the Google GenAI client (uses GEMINI_API_KEY environment variable automatically if passed or configured)
+ai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
@@ -112,7 +115,7 @@ def get_username_from_token():
 # --- HISTORY & SEARCH HELPERS ---
 
 def get_formatted_user_history(username: str):
-    """Retrieves conversation history and dynamically sets user identity in system prompt."""
+    """Retrieves conversation history formatted for Gemini."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -124,8 +127,9 @@ def get_formatted_user_history(username: str):
 
     rows.reverse()
     
-    # Dynamically inject current user's name into system prompt
-    dynamic_system_prompt = (
+    # Gemini uses 'user' and 'model' for chat contents formatting
+    formatted_messages = []
+        dynamic_system_prompt = (
         "You are an assisting chatbot named ETHAN — 'Engine for Text, Heuristics, & Augmented Navigation'. "
         f"You are currently talking to the logged-in user named '{username}'. "
         "Address them by name when appropriate. Tavily web-search context will be provided when relevant. "
@@ -134,7 +138,11 @@ def get_formatted_user_history(username: str):
     
     formatted_messages = [{"role": "system", "content": dynamic_system_prompt}]
     for row in rows:
-        formatted_messages.append({"role": row["role"], "content": row["content"]})
+        gemini_role = "user" if row["role"] == "user" else "model"
+        formatted_messages.append({
+            "role": gemini_role,
+            "parts": [{"text": row["content"]}]
+        })
 
     return formatted_messages
 
@@ -150,7 +158,7 @@ def save_message(username: str, role: str, content: str):
 
 
 def needs_search(query: str) -> bool:
-    """Classifies whether a query requires live web search."""
+    """Classifies whether a query requires live web search using Gemini 2.5 Flash."""
     q_lower = query.lower()
 
     forced_keywords = [
@@ -161,25 +169,21 @@ def needs_search(query: str) -> bool:
         print(" [Classifier]: SEARCH (Forced via keyword)")
         return True
 
+    if not ai_client:
+        return False
+
     try:
-        response = ollama.chat(
-            model="llama3.2:3b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a strict binary classifier. "
-                        "Output ONLY the word SEARCH if the question requires real-time facts, current events, live prices, or weather. "
-                        "Output ONLY the word NO for general knowledge, coding, definitions, or conversation. "
-                        "Do not output any punctuation or additional text."
-                    ),
-                },
-                {"role": "user", "content": query},
-            ],
-            options={"temperature": 0.0}
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=(
+                "You are a strict binary classifier. "
+                "Output ONLY the word SEARCH if the question requires real-time facts, current events, live prices, or weather. "
+                "Output ONLY the word NO for general knowledge, coding, definitions, or conversation. "
+                f"Question: {query}"
+            )
         )
 
-        decision = response.message.content.strip().upper()
+        decision = response.text.strip().upper()
         print(f" [Classifier output]: '{decision}'")
 
         return "SEARCH" in decision and "NO" not in decision
@@ -249,7 +253,10 @@ def chat_endpoint():
     if not user_message:
         return jsonify({"detail": "Message is required"}), 400
 
-    messages_payload = get_formatted_user_history(username)
+    if not ai_client:
+        return jsonify({"detail": "Gemini API key is not configured on the server."}), 500
+
+    history_payload = get_formatted_user_history(username)
 
     if needs_search(user_message):
         web_results = search_web(user_message)
@@ -260,16 +267,16 @@ def chat_endpoint():
     else:
         prompt_content = user_message
 
-    messages_payload.append({"role": "user", "content": prompt_content})
-
     try:
-        response = ollama.chat(
-            model="llama3.2:3b",
-            messages=messages_payload
+        # Use Gemini's multi-turn chat session functionality
+        chat_session = ai_client.chats.create(
+            model="gemini-2.5-flash",
+            history=history_payload
         )
-        bot_reply = response.message.content
+        response = chat_session.send_message(prompt_content)
+        bot_reply = response.text
     except Exception as error:
-        return jsonify({"detail": f"Could not get a response from Ollama: {error}"}), 500
+        return jsonify({"detail": f"Could not get a response from Gemini: {error}"}), 500
 
     save_message(username, "user", user_message)
     save_message(username, "assistant", bot_reply)
@@ -311,4 +318,5 @@ def clear_user_chat_history():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=False)
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port, debug=False)
