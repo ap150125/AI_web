@@ -278,7 +278,7 @@ def chat_endpoint():
     try:
         # Use Gemini's multi-turn chat session functionality
         chat_session = ai_client.chats.create(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             history=history_payload
         )
         response = chat_session.send_message(prompt_content)
