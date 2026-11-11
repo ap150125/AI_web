@@ -28,7 +28,7 @@ MAX_HISTORY_MESSAGES = 20
 # --- DEFINE YOUR AUTHORIZED USERS HERE ---
 ALLOWED_USERS = {
     "akash": "player115",
-    "alice": "password123",
+    "akshara": "password",
     "bob": "securepass456"
 }
 
