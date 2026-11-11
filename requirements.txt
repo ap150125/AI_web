@@ -1,7 +1,6 @@
 flask
 flask_cors
 datetime
-os
 sqlite3
 python-jose[cryptography]
 ollama
