@@ -1,6 +1,6 @@
-flask
-flask_cors
-datetime
-python-jose[cryptography]
-ollama
+Flask
+flask-cors
+python-jose
+Werkzeug
+google-genai
 tavily-python
