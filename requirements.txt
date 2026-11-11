@@ -1,6 +1,5 @@
 flask
 flask_cors
-werkzeug.security
 datetime
 os
 sqlite3
