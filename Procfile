@@ -1,1 +1,1 @@
-uvicorn web:app --host 0.0.0.0 --port $PORT
+python web1.py
