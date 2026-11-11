@@ -182,7 +182,7 @@ def needs_search(query: str) -> bool:
 
     try:
         response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash"
             contents=(
                 "You are a strict binary classifier. "
                 "Output ONLY the word SEARCH if the question requires real-time facts, current events, live prices, or weather. "
