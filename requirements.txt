@@ -4,3 +4,4 @@ python-jose
 Werkzeug
 google-genai
 tavily-python
+certifi
