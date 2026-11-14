@@ -9,6 +9,10 @@ from jose import JWTError, jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 from google import genai
 from tavily import TavilyClient
+import certifi
+
+# Force Python's SSL layer to use certifi's bundle in cloud environments
+os.environ["SSL_CERT_FILE"] = certifi.where()
 
 app = Flask(__name__)
 CORS(app)
